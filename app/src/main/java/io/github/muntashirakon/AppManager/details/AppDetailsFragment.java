@@ -21,6 +21,7 @@ import android.os.PatternMatcher;
 import android.os.RemoteException;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -73,6 +74,7 @@ import io.github.muntashirakon.AppManager.intercept.ActivityInterceptor;
 import io.github.muntashirakon.AppManager.rules.RuleType;
 import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
 import io.github.muntashirakon.AppManager.servermanager.ActivityManagerCompat;
+import io.github.muntashirakon.AppManager.servermanager.PermissionCompat;
 import io.github.muntashirakon.AppManager.settings.FeatureController;
 import io.github.muntashirakon.AppManager.types.IconLoaderThread;
 import io.github.muntashirakon.AppManager.types.RecyclerViewWithEmptyView;
@@ -1357,30 +1359,44 @@ public class AppDetailsFragment extends Fragment implements SearchView.OnQueryTe
                         mActivity.getString(R.string.group), permissionInfo.group));
             } else holder.textView5.setVisibility(View.GONE);
             // Permission Switch
-            int sdkVersion = mainModel.getPackageInfoSafe() != null ? mainModel.getPackageInfoSafe()
-                    .applicationInfo.targetSdkVersion : 23;
+            int sdkVersion = mainModel != null && mainModel.getPackageInfoSafe() != null ?
+                    mainModel.getPackageInfoSafe().applicationInfo.targetSdkVersion : 23;
             if ((isRootEnabled || isADBEnabled) && !isExternalApk && ((permissionItem.isDangerous
-                    && sdkVersion >= 23) || protectionLevel.contains("development")
+                    && sdkVersion >= Build.VERSION_CODES.M) || protectionLevel.contains("development")
                     || permissionItem.appOp != AppOpsManager.OP_NONE)) {
                 holder.toggleSwitch.setVisibility(View.VISIBLE);
                 holder.toggleSwitch.setChecked(permissionItem.isGranted);
                 holder.toggleSwitch.setOnCheckedChangeListener((buttonView, isGranted) -> {
                     if (buttonView.isPressed()) {
                         executor.submit(() -> {
-                            if (mainModel.setPermission(permName, isGranted)) {
-                                AppDetailsPermissionItem appDetailsItem = new AppDetailsPermissionItem(permissionItem);
-                                appDetailsItem.isGranted = isGranted;
-                                runOnUiThread(() -> set(index, appDetailsItem));
-                                mainModel.setUsesPermission(appDetailsItem.name, isGranted);
+                            if (mainModel.setPermission(permissionItem)) {
+                                runOnUiThread(() -> set(index, permissionItem));
+                                mainModel.setUsesPermission(permissionItem);
                             } else {
                                 runOnUiThread(() -> {
-                                    Toast.makeText(mActivity, isGranted ? R.string.failed_to_grant_permission : R.string.failed_to_revoke_permission, Toast.LENGTH_SHORT).show();
+                                    UIUtils.displayShortToast(isGranted ? R.string.failed_to_grant_permission
+                                            : R.string.failed_to_revoke_permission);
                                     notifyItemChanged(index);
                                 });
                             }
                         });
                     }
                 });
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    holder.itemView.setOnLongClickListener(v -> {
+                        SparseArray<String> permissionFlags = PermissionCompat.getPermissionFlagsWithString(
+                                permissionItem.permissionFlags);
+                        String[] flags = new String[permissionFlags.size()];
+                        for (int i = 0; i < flags.length; ++i)
+                            flags[i] = permissionFlags.valueAt(i);
+                        new MaterialAlertDialogBuilder(mActivity)
+                                .setTitle(R.string.permission_flags)
+                                .setItems(flags, null)
+                                .setNegativeButton(R.string.close, null)
+                                .show();
+                        return true;
+                    });
+                }
             } else holder.toggleSwitch.setVisibility(View.GONE);
         }
 
