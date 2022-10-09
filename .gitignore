@@ -27,3 +27,6 @@ basement_dist
 *.jks
 *~
 scripts/KeyStore.sh
+.AppleDouble
+.LSOverride
+Icon
